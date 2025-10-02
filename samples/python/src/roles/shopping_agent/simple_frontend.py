@@ -88,6 +88,8 @@ HTML_TEMPLATE = """
             max-width: 80%;
             font-size: 14px;
             line-height: 1.4;
+            white-space: normal;
+            word-wrap: break-word;
         }
         .user-message {
             background: rgba(146, 228, 221, 0.1);
@@ -105,6 +107,25 @@ HTML_TEMPLATE = """
         }
         .user-message strong {
             color: #92E4DD;
+        }
+        /* Markdown styles for readability */
+        .agent-message h1, .agent-message h2, .agent-message h3 {
+            margin: 0.4em 0 0.3em;
+            color: #C4B643;
+        }
+        .agent-message p { margin: 0.4em 0; }
+        .agent-message ul, .agent-message ol { margin: 0.4em 0 0.4em 1.2em; }
+        .agent-message code {
+            background: rgba(196, 182, 67, 0.15);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: var(--font-sans);
+            color: #E9DEA0;
+        }
+        .agent-message pre code {
+            display: block;
+            padding: 10px;
+            overflow-x: auto;
         }
         .chat-input {
             display: flex;
@@ -175,7 +196,21 @@ HTML_TEMPLATE = """
 
     </div>
 
+    <!-- Markdown renderers -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script>
+        function renderMarkdownToSafeHtml(markdownText) {
+            try {
+                // Configure marked for line breaks and GitHub-like lists
+                marked.setOptions({ breaks: true, gfm: true });
+                const rawHtml = marked.parse(markdownText || '');
+                return DOMPurify.sanitize(rawHtml);
+            } catch (e) {
+                return DOMPurify.sanitize(markdownText || '');
+            }
+        }
+
         function handleKeyPress(event) {
             if (event.key === 'Enter') {
                 sendMessage();
@@ -207,10 +242,10 @@ HTML_TEMPLATE = """
             })
             .then(response => response.json())
             .then(data => {
-                addMessage(data.response, 'agent');
+                addMessage(data.response, 'agent', true);
             })
             .catch(error => {
-                addMessage('Sorry, I encountered an error. Please try again.', 'agent');
+                addMessage('Sorry, I encountered an error. Please try again.', 'agent', true);
             })
             .finally(() => {
                 sendButton.disabled = false;
@@ -218,7 +253,7 @@ HTML_TEMPLATE = """
             });
         }
 
-        function addMessage(text, type) {
+        function addMessage(text, type, isMarkdown=false) {
             const messagesContainer = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}-message`;
@@ -226,7 +261,8 @@ HTML_TEMPLATE = """
             if (type === 'user') {
                 messageDiv.innerHTML = `<strong>You:</strong><br>${text}`;
             } else {
-                messageDiv.innerHTML = `<strong>BuyWhenReady:</strong><br>${text}`;
+                const rendered = isMarkdown ? renderMarkdownToSafeHtml(text) : text;
+                messageDiv.innerHTML = `<strong>BuyWhenReady:</strong><br>${rendered}`;
             }
 
             messagesContainer.appendChild(messageDiv);

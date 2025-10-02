@@ -68,7 +68,12 @@ class BaseServerExecutor(AgentExecutor, abc.ABC):
       self._supported_extension_uris = {ext.uri for ext in supported_extensions}
     else:
       self._supported_extension_uris = set()
-    self._client = genai.Client()
+    import os
+    api_key = os.getenv('GOOGLE_API_KEY')
+    if api_key:
+      self._client = genai.Client(api_key=api_key)
+    else:
+      self._client = genai.Client()
     self._tools = tools
     self._tool_resolver = FunctionCallResolver(
         self._client, self._tools, system_prompt

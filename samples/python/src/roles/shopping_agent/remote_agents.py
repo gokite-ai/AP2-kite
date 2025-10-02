@@ -36,7 +36,7 @@ credentials_provider_client = PaymentRemoteA2aClient(
 
 merchant_agent_client = PaymentRemoteA2aClient(
     name="merchant_agent",
-    base_url="http://localhost:8001/a2a/merchant_agent",
+    base_url="http://localhost:8006/a2a/merchant_agent",
     required_extensions={
         EXTENSION_URI,
     },

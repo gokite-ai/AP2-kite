@@ -21,7 +21,7 @@ from absl import app
 from roles.merchant_agent.agent_executor import MerchantAgentExecutor
 from common import server
 
-AGENT_MERCHANT_PORT = 8001
+AGENT_MERCHANT_PORT = 8006
 
 def main(argv: Sequence[str]) -> None:
   agent_card = server.load_local_agent_card(__file__)
