@@ -5,7 +5,7 @@ This module provides a simple HTML frontend that calls the ADK APIs directly.
 """
 
 import logging
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, redirect
 from flask_cors import CORS
 import requests
 
@@ -349,27 +349,114 @@ def chat_with_agent():
         response = requests.post(
             f"{ADK_URL}/run",
             json=adk_message,
-            timeout=30
+            timeout=180
         )
 
         if response.status_code == 200:
             events = response.json()
             logger.info(f"ADK returned {len(events)} events")
 
-            # Extract the response from the events
-            response_text = ""
-            for event in events:
-                if event.get('content') and isinstance(event['content'], dict):
-                    content = event['content']
-                    if 'parts' in content:
-                        for part in content['parts']:
-                            if 'text' in part and part['text']:
-                                response_text += part['text']
+            # Extract the response from the events (robust to multiple shapes)
+            response_chunks = []
+            try:
+                for event in events:
+                    # Common content dict with parts
+                    content = event.get('content')
+                    if isinstance(content, dict):
+                        parts = content.get('parts')
+                        if isinstance(parts, list):
+                            for part in parts:
+                                if isinstance(part, dict):
+                                    # Primary: text
+                                    txt = part.get('text')
+                                    if txt:
+                                        response_chunks.append(str(txt))
+                                    # Secondary: display_text/displayText/message/output
+                                    for alt_key in ('display_text', 'displayText', 'message', 'output'):
+                                        alt = part.get(alt_key)
+                                        if alt:
+                                            response_chunks.append(str(alt))
+                        # Also check top-level alternative keys in content
+                        for alt_key in ('display_text', 'displayText', 'message', 'output', 'text'):
+                            alt = content.get(alt_key)
+                            if alt:
+                                response_chunks.append(str(alt))
+                    elif isinstance(content, list):
+                        # Some events might return a list of parts directly
+                        for part in content:
+                            if isinstance(part, dict):
+                                txt = part.get('text')
+                                if txt:
+                                    response_chunks.append(str(txt))
+                            elif isinstance(part, str):
+                                response_chunks.append(part)
+                    elif isinstance(content, str):
+                        response_chunks.append(content)
 
-            logger.info(f"Extracted response: {response_text[:100]}...")
+                    # Fallbacks on the event itself
+                    for alt_key in ('display_text', 'displayText', 'message', 'output', 'text', 'error'):
+                        if alt_key in event and event.get(alt_key):
+                            response_chunks.append(str(event.get(alt_key)))
+            except Exception as parse_err:
+                logger.warning(f"Failed to parse ADK events robustly: {parse_err}")
+
+            response_text = "\n".join([c for c in response_chunks if c]).strip()
+            # If the response contains an Order Summary, append wallet info from agent_config
+            try:
+                if 'Order Summary' in response_text and is_authenticated:
+                    agent_cfg = user_info.get('agent_config') or {}
+                    wallet_addr = agent_cfg.get('wallet_address')
+                    wallet_bal = agent_cfg.get('wallet_balance')
+                    if wallet_addr or wallet_bal is not None:
+                        masked = wallet_addr
+                        if isinstance(wallet_addr, str) and len(wallet_addr) > 8:
+                            masked = f"{wallet_addr[:6]}…{wallet_addr[-4:]}"
+                        wallet_block = []
+                        wallet_block.append("\nWallet:")
+                        if masked:
+                            wallet_block.append(f"Address: {masked}")
+                        if wallet_bal is not None:
+                            try:
+                                wallet_block.append(f"Balance: ${float(wallet_bal):,.2f}")
+                            except Exception:
+                                wallet_block.append(f"Balance: {wallet_bal}")
+                        response_text = f"{response_text}\n\n" + "\n".join(wallet_block)
+
+                # Replace Payment Method section with Kite User Wallet label
+                if 'Payment Method' in response_text and is_authenticated:
+                    agent_cfg = user_info.get('agent_config') or {}
+                    wallet_addr = agent_cfg.get('wallet_address')
+                    wallet_bal = agent_cfg.get('wallet_balance')
+                    masked = wallet_addr
+                    if isinstance(wallet_addr, str) and len(wallet_addr) > 8:
+                        masked = f"{wallet_addr[:6]}…{wallet_addr[-4:]}"
+                    # Build replacement block
+                    pm_lines = ["Payment Method:", "", "Kite User Wallet"]
+                    if masked:
+                        pm_lines.append(f"Address: {masked}")
+                    if wallet_bal is not None:
+                        try:
+                            pm_lines.append(f"Balance: ${float(wallet_bal):,.2f}")
+                        except Exception:
+                            pm_lines.append(f"Balance: {wallet_bal}")
+                    replacement = "\n".join(pm_lines) + "\n"
+
+                    # Find and replace the original Payment Method block (up to next blank line or 'Do you confirm')
+                    import re
+                    pattern = r"Payment Method:[\s\S]*?(?:\n\n|\nDo you confirm)"
+                    response_text = re.sub(pattern, lambda m: replacement + ("\n" if m.group(0).strip().endswith('Do you confirm') else "\n"), response_text)
+            except Exception as _augment_err:
+                logger.debug(f"Could not append wallet info: {_augment_err}")
+            logger.info(f"Extracted response: {response_text[:200]}...")
+
+            if not response_text:
+                response_text = (
+                    "I received your message but couldn't generate a response. "
+                    "If this persists, please try rephrasing or repeating your last step."
+                )
 
             return jsonify({
-                'response': response_text or "I received your message but couldn't generate a response.",
+                'response': response_text,
                 'agent_id': user_info.get('agent_id', 'BuyWhenReady-gemini-anonymous') if is_authenticated else 'BuyWhenReady-gemini-anonymous',
                 'authenticated': is_authenticated
             })

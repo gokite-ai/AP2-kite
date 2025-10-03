@@ -12,10 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Wrapper for the A2A client."""
+"""Wrapper for the A2A client.
 
+Adds structured logging around outbound A2A calls so we can diagnose hangs.
+Logs include remote name, base URL, operation, and elapsed time.
+"""
+
+import asyncio
 import httpx
 import logging
+import time
 import uuid
 
 from a2a import types as a2a_types
@@ -42,6 +48,7 @@ class PaymentRemoteA2aClient():
       name: str,
       base_url: str,
       required_extensions: set[str] | None = None,
+      delay_between_calls: float = 1.0,
   ):
     """Initializes the PaymentRemoteA2aClient.
 
@@ -63,25 +70,52 @@ class PaymentRemoteA2aClient():
     self._base_url = base_url
     self._agent_card = None
     self._client_required_extensions = required_extensions or set()
+    self._delay_between_calls = delay_between_calls
+    self._last_call_time = 0
+
+  async def _enforce_delay(self):
+    """Enforce delay between A2A calls to prevent rate limiting."""
+    current_time = time.time()
+    time_since_last_call = current_time - self._last_call_time
+    if time_since_last_call < self._delay_between_calls:
+      delay_needed = self._delay_between_calls - time_since_last_call
+      await asyncio.sleep(delay_needed)
+    self._last_call_time = time.time()
 
   async def get_agent_card(self) -> a2a_types.AgentCard:
     """Get agent card."""
     if self._agent_card is None:
+      start_time = time.perf_counter()
+      logging.info(
+          "[A2A][%s] Resolving agent card from %s",
+          self._name,
+          f"{self._base_url}/.well-known/agent-card.json",
+      )
       resolver = A2ACardResolver(
           httpx_client=self._httpx_client,
           base_url=self._base_url,
       )
       self._agent_card = await resolver.get_agent_card()
+      elapsed_ms = (time.perf_counter() - start_time) * 1000
+      logging.info(
+          "[A2A][%s] Agent card resolved in %.0f ms",
+          self._name,
+          elapsed_ms,
+      )
     return self._agent_card
 
   async def send_a2a_message(
       self, message: a2a_types.Message
   ) -> a2a_types.Task:
     """Retrieves the A2A client, sends the message, and returns the event."""
+    # Enforce delay before making A2A call
+    await self._enforce_delay()
     my_a2a_client: Client = await self._get_a2a_client()
 
     task_manager = ClientTaskManager()
 
+    logging.info("[A2A][%s] Sending message to %s", self._name, self._base_url)
+    start_time = time.perf_counter()
     async for event in my_a2a_client.send_message(message):
       # Tasks are returned in tuples (aka ClientEvent). The first element is the
       # Task, the second element is the UpdateEvent.
@@ -92,9 +126,11 @@ class PaymentRemoteA2aClient():
     task = task_manager.get_task()
     if task is None:
       raise RuntimeError(f"No response from {self._name}")
+    elapsed_ms = (time.perf_counter() - start_time) * 1000
     logging.info(
-        "Response received from %s for (context_id, task_id): (%s, %s)",
+        "[A2A][%s] Response received in %.0f ms for (context_id, task_id): (%s, %s)",
         self._name,
+        elapsed_ms,
         task.context_id,
         task.id,
     )

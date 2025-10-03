@@ -18,6 +18,8 @@ This implementation enhances the ADK's LlmAgent by automatically retrying
 requests and surfacing errors captured from the LLM.
 """
 
+import asyncio
+import time
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.events.event import Event
@@ -27,9 +29,11 @@ from typing_extensions import AsyncGenerator, override
 class RetryingLlmAgent(LlmAgent):
   """An LLM agent that surfaces errors to the user and then retries."""
 
-  def __init__(self, *args, max_retries: int = 1, **kwargs):
+  def __init__(self, *args, max_retries: int = 1, delay_between_calls: float = 1.0, **kwargs):
     super().__init__(*args, **kwargs)
     self._max_retries = max_retries
+    self._delay_between_calls = delay_between_calls
+    self._last_call_time = 0
 
   async def _retry_async(
       self, ctx: InvocationContext, retries_left: int = 0
@@ -57,9 +61,20 @@ class RetryingLlmAgent(LlmAgent):
         async for event in self._retry_async(ctx, retries_left - 1):
           yield event
 
+  async def _enforce_delay(self):
+    """Enforce delay between API calls to prevent rate limiting."""
+    current_time = time.time()
+    time_since_last_call = current_time - self._last_call_time
+    if time_since_last_call < self._delay_between_calls:
+      delay_needed = self._delay_between_calls - time_since_last_call
+      await asyncio.sleep(delay_needed)
+    self._last_call_time = time.time()
+
   @override
   async def _run_async_impl(
       self, ctx: InvocationContext
   ) -> AsyncGenerator[Event, None]:
+    # Enforce delay before making API call
+    await self._enforce_delay()
     async for event in self._retry_async(ctx, retries_left=self._max_retries):
       yield event

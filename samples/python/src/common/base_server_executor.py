@@ -73,7 +73,8 @@ class BaseServerExecutor(AgentExecutor, abc.ABC):
     if api_key:
       self._client = genai.Client(api_key=api_key)
     else:
-      self._client = genai.Client()
+      # Try to get API key from environment or raise error
+      raise ValueError("GOOGLE_API_KEY environment variable is required. Please set it in your .env file.")
     self._tools = tools
     self._tool_resolver = FunctionCallResolver(
         self._client, self._tools, system_prompt

@@ -31,6 +31,7 @@ credentials_provider_client = PaymentRemoteA2aClient(
     required_extensions={
         EXTENSION_URI,
     },
+    delay_between_calls=1.5,
 )
 
 
@@ -40,4 +41,5 @@ merchant_agent_client = PaymentRemoteA2aClient(
     required_extensions={
         EXTENSION_URI,
     },
+    delay_between_calls=1.5,
 )

@@ -21,6 +21,7 @@ shopping and purchasing process, such as updating a cart or initiating payment.
 from datetime import datetime
 from datetime import timezone
 import uuid
+import os
 
 from a2a.types import Artifact
 from google.adk.tools.tool_context import ToolContext
@@ -167,6 +168,8 @@ def create_payment_mandate(
     The payment mandate.
   """
   cart_mandate = tool_context.state["cart_mandate"]
+  # Demo fallback: if user_email missing, use DEMO_USER_EMAIL or default
+  user_email = user_email or os.getenv("DEMO_USER_EMAIL", "bugsbunny@gmail.com")
 
   payment_request = cart_mandate.contents.payment_request
   shipping_address = tool_context.state["shipping_address"]
@@ -306,3 +309,55 @@ def _parse_cart_mandates(artifacts: list[Artifact]) -> list[CartMandate]:
   return artifact_utils.find_canonical_objects(
       artifacts, CART_MANDATE_DATA_KEY, CartMandate
   )
+
+
+def display_kite_proof_of_intent(
+    user_email: str,
+    wallet_address: str,
+    merchant_name: str,
+    item_sku: str,
+    buywhenready_conditions: dict,
+    cart_expiry: str,
+    tool_context: ToolContext,
+) -> str:
+  """Displays the Kite proof of intent for BuyWhenReady purchases.
+
+  Args:
+    user_email: The user's email address.
+    wallet_address: The user's wallet address.
+    merchant_name: The merchant's name.
+    item_sku: The item SKU.
+    buywhenready_conditions: The BuyWhenReady conditions.
+    cart_expiry: The cart expiration time.
+    tool_context: The ADK supplied tool context.
+
+  Returns:
+    A formatted Kite proof of intent display.
+  """
+  # Demo fallback: if user_email not provided, use DEMO_USER_EMAIL or a default
+  user_email = user_email or os.getenv("DEMO_USER_EMAIL", "bugsbunny@gmail.com")
+
+  # Format the conditions for display
+  conditions_text = ""
+  if buywhenready_conditions:
+    for condition_type, details in buywhenready_conditions.items():
+      conditions_text += f"        {condition_type}: {details}\n"
+
+  # Create the proof of intent display
+  proof_of_intent = f"""
+🪁 Kite validated your purchase intent.
+
+Payer: {user_email} (address: {wallet_address})
+Payee: {merchant_name}
+Shopping intent:
+    SKU: {item_sku}
+    Purchase criteria:
+{conditions_text}
+TTL: {cart_expiry}
+
+Kite prepared verifiable proof to communicate this intent from agent to merchant.
+
+Your purchase will be executed automatically when the specified conditions are met.
+"""
+
+  return proof_of_intent

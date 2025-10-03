@@ -32,7 +32,8 @@ from common.system_utils import DEBUG_MODE_INSTRUCTIONS
 shopper = RetryingLlmAgent(
     model="gemini-2.5-flash",
     name="shopper",
-    max_retries=5,
+    max_retries=2,
+    delay_between_calls=1.5,
     instruction="""
     You are an agent responsible for helping the user shop for products.
 

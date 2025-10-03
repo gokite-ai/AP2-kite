@@ -733,6 +733,9 @@ def configure_agent():
             'max_budget': max_budget,
             'expiration_time': expiration_time.isoformat(),
             'created_at': datetime.now().isoformat(),
+            # Demo wallet info to surface in UI and order summary
+            'wallet_address': '0x742d35Cc6634C0532925a3b8D',
+            'wallet_balance': 2847.32,
             'status': 'active'
         }
 

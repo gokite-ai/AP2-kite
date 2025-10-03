@@ -1,0 +1,48 @@
+{
+    "name": "ShoppingAgent",
+    "description": "A shopping assistant agent that helps users find and purchase products.",
+    "url": "http://localhost:8000",
+    "preferredTransport": "JSONRPC",
+    "protocolVersion": "0.3.0",
+    "version": "1.0.0",
+    "defaultInputModes": [
+        "json"
+    ],
+    "defaultOutputModes": [
+        "json"
+    ],
+    "capabilities": {
+        "extensions": [
+            {
+                "uri": "https://github.com/google-agentic-commerce/ap2/v1",
+                "description": "Supports the Agent Payments Protocol.",
+                "required": true
+            }
+        ]
+    },
+    "skills": [
+        {
+            "id": "shopping_assistance",
+            "name": "Shopping Assistance",
+            "description": "Helps users find products, manage shopping cart, and complete purchases.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_message": {
+                        "type": "string",
+                        "description": "The user's shopping request or question."
+                    }
+                },
+                "required": [
+                    "user_message"
+                ]
+            },
+            "tags": [
+                "shopping",
+                "assistance",
+                "commerce"
+            ]
+        }
+    ]
+}
+

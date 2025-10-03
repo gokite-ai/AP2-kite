@@ -33,7 +33,8 @@ from common.system_utils import DEBUG_MODE_INSTRUCTIONS
 payment_method_collector = RetryingLlmAgent(
     model="gemini-2.5-flash",
     name="payment_method_collector",
-    max_retries=5,
+    max_retries=2,
+    delay_between_calls=1.5,
     instruction="""
     You are an agent responsible for obtaining the user's payment method for a
     purchase.
@@ -62,14 +63,13 @@ payment_method_collector = RetryingLlmAgent(
           manner.
        Ensure the entire presentation is well-formatted and easy to read.
     3. Call the `get_payment_methods` tool to get eligible
-       payment_method_aliases with the method_data from the CartMandate's
-       payment_request. Present the payment_method_aliases to the user in
-       a numbered list.
-    4. Ask the user to choose which of their forms of payment they would
-       like to use for the payment. Remember that payment_method_alias.
+       payment_method_aliases. For this demo, this will return "Kite User Wallet".
+       Present the payment method to the user.
+    4. Since there's only one payment method (Kite User Wallet), automatically
+       select it and proceed.
     5. Call the `get_payment_credential_token` tool to get the payment
-       credential token with the user_email and payment_method_alias.
-    6. Transfer back to the root_agent with the payment_method_alias.
+       credential token with the user_email and "Kite User Wallet".
+    6. Transfer back to the root_agent with "Kite User Wallet" as the payment_method_alias.
     """ % DEBUG_MODE_INSTRUCTIONS,
     tools=[
         tools.get_payment_methods,

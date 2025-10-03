@@ -33,48 +33,33 @@ from common.system_utils import DEBUG_MODE_INSTRUCTIONS
 shipping_address_collector = RetryingLlmAgent(
     model="gemini-2.5-flash",
     name="shipping_address_collector",
-    max_retries=5,
+    max_retries=2,
+    delay_between_calls=1.5,
     instruction="""
         You are an agent responsible for obtaining the user's shipping address.
 
     %s
 
         When asked to complete a task, follow these instructions:
-        1. Ask the user "Would you prefer to use a digital wallet to access
-        your credentials for this purchase, or would you like to enter
-        your shipping address manually?"
-        2. Proceed depending on the following scenarios:
+        1. Present the default shipping address to the user:
+           "Your default shipping address is: 123 Main St, San Francisco, CA 94105"
+        2. Ask the user: "Would you like to use this address, or would you like to change it?"
+        3. Proceed based on the user's response:
 
-        Scenario 1:
-        The user wants to use their digital wallet (e.g. PayPal or Google Wallet).
-        Do not add any additional digital wallet options to the list.
-        Instructions:
-        1. Collect the info that what is the digital wallet the user would
-           like to use for this transaction.
-        2. Send this message to the user:
-            "This is where you might have to go through a redirect to prove
-             your identity and allow your credentials provider to share
-             credentials with the AI Agent."
-        3. Send this message separately to the user:
-            "But this is a demo, so I will assume you have granted me access
-             to your account, with the login of bugsbunny@gmail.com.
+        If the user wants to use the default address:
+        1. Confirm: "Great! I'll use 123 Main St, San Francisco, CA 94105 as your shipping address."
+        2. Call the `get_default_shipping_address` tool to get the default address.
+        3. Transfer back to the root_agent with the default shipping address.
 
-             Is that ok?"
-        4. Collect the user's agreement to access their account.
-        5. Once the user agrees, delegate to the 'get_shipping_address' tool
-           to collect the user's shipping address. Give bugsbunny@gmail.com
-           as the user's email address.
-        6. The `get_shipping_address` tool will return the user's shipping
-           address. Transfer back to the root_agent with the shipping address.
-
-        Scenario 2:
-        Condition: The user wants to enter their shipping address manually.
-        Instructions:
-        1. Collect the user's shipping address. Ensure you have collected all
+        If the user wants to change the address:
+        1. Ask: "Please provide your new shipping address. I need the complete address including street, city, state, and ZIP code."
+        2. Collect the user's new shipping address. Ensure you have collected all
            of the necessary parts of a US address.
-        2. Transfer back to the root_agent with the shipping address.
+        3. Confirm the new address with the user.
+        4. Transfer back to the root_agent with the new shipping address.
     """ % DEBUG_MODE_INSTRUCTIONS,
     tools=[
         tools.get_shipping_address,
+        tools.get_default_shipping_address,
     ],
 )

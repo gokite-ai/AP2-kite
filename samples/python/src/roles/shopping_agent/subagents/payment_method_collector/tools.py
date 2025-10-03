@@ -22,6 +22,7 @@ from google.adk.tools.tool_context import ToolContext
 
 from ap2.types.payment_request import PAYMENT_METHOD_DATA_DATA_KEY
 from common.a2a_message_builder import A2aMessageBuilder
+import os
 from common import artifact_utils
 from roles.shopping_agent.remote_agents import credentials_provider_client
 
@@ -30,34 +31,17 @@ async def get_payment_methods(
     user_email: str,
     tool_context: ToolContext,
 ) -> list[str]:
-  """Gets the user's payment methods from the credentials provider.
-
-  These will match the payment method on the cart being purchased.
+  """Gets the user's payment methods - returns Kite wallet for demo.
 
   Args:
     user_email: Identifies the user's account
     tool_context: The ADK supplied tool context.
 
   Returns:
-    A dictionary of the user's applicable payment methods.
+    A list containing the Kite wallet payment method.
   """
-  cart_mandate = tool_context.state["cart_mandate"]
-  message_builder = (
-      A2aMessageBuilder()
-      .set_context_id(tool_context.state["shopping_context_id"])
-      .add_text("Get a filtered list of the user's payment methods.")
-      .add_data("user_email", user_email)
-  )
-  for method_data in cart_mandate.contents.payment_request.method_data:
-    message_builder.add_data(
-        PAYMENT_METHOD_DATA_DATA_KEY,
-        method_data.model_dump(),
-    )
-  task = await credentials_provider_client.send_a2a_message(
-      message_builder.build()
-  )
-  payment_methods = artifact_utils.get_first_data_part(task.artifacts)
-  return payment_methods
+  # For demo purposes, always return Kite User Wallet as the payment method
+  return ["Kite User Wallet"]
 
 
 async def get_payment_credential_token(
@@ -65,7 +49,7 @@ async def get_payment_credential_token(
     payment_method_alias: str,
     tool_context: ToolContext,
 ) -> str:
-  """Gets a payment credential token from the credentials provider.
+  """Gets a payment credential token - returns demo token for Kite wallet.
 
   Args:
     user_email: The user's email address.
@@ -75,6 +59,25 @@ async def get_payment_credential_token(
   Returns:
     Status of the call and the payment credential token.
   """
+  # Demo fallback: if user_email not provided, use DEMO_USER_EMAIL or a default
+  user_email = user_email or os.getenv("DEMO_USER_EMAIL", "bugsbunny@gmail.com")
+
+  # For Kite User Wallet, create a demo token
+  if payment_method_alias == "Kite User Wallet":
+    demo_token = {
+        "type": "kite_wallet",
+        "address": "0x742d35Cc6634C0532925a3b8D",
+        "balance": 2847.32,
+        "currency": "USD"
+    }
+
+    tool_context.state["payment_credential_token"] = {
+        "value": demo_token,
+        "url": "demo://kite-wallet",
+    }
+    return {"status": "success", "token": demo_token}
+
+  # Fallback to credentials provider for other payment methods
   message = (
       A2aMessageBuilder()
       .set_context_id(tool_context.state["shopping_context_id"])

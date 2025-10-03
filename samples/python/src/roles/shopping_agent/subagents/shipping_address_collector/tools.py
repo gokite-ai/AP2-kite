@@ -53,6 +53,28 @@ async def get_shipping_address(
   return shipping_address
 
 
+async def get_default_shipping_address(
+    tool_context: ToolContext,
+) -> ContactAddress:
+  """Gets the default shipping address.
+
+  Args:
+    tool_context: The ADK supplied tool context.
+
+  Returns:
+    The default shipping address.
+  """
+  # Create a default shipping address
+  default_address = ContactAddress(
+      street_address="123 Main St",
+      city="San Francisco",
+      state="CA",
+      postal_code="94105",
+      country="US"
+  )
+  return default_address
+
+
 def _parse_addresses(artifacts: list[Artifact]) -> list[ContactAddress]:
   """Parses a list of artifacts into a list of ContactAddress objects."""
   return artifact_utils.find_canonical_objects(
